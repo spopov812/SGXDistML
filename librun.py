@@ -12,9 +12,12 @@ import torch.optim as optim
 from tqdm import tqdm
 from model import Net
 
-from lib import *
+from SGXDistML.lib import distributed_sgx_run
 
-def run():
+from pprint import pprint
+
+@distributed_sgx_run(model=2, dataloader=0, optimizer=3)
+def train(dataloader, device, model, optimizer):
 
     #Start training the model normally.
     for inputs, labels in tqdm(dataloader):
@@ -29,20 +32,23 @@ def run():
     return True
 
 
-#Setup the distributed sampler to split the dataset to each GPU.
-transform=transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize((0.1307,), (0.3081,))
-        ])
+def main():
 
-dataset = datasets.MNIST('./data', train=False, download=True, transform=transform)
-dataloader = distributed_sgx_dataloader(dataset)
+    #Setup the distributed sampler to split the dataset to each GPU.
+    transform=transforms.Compose([
+            transforms.ToTensor(),
+            transforms.Normalize((0.1307,), (0.3081,))
+            ])
 
-#set the cuda device to a GPU allocated to current process .
-device = torch.device('cpu')
-model = distributed_sgx_model(Net()).to(device)
-model = torch.nn.parallel.DistributedDataParallel(model)
+    dataset = datasets.MNIST('./data', train=False, download=True, transform=transform)
 
-optimizer = optim.Adadelta(model.parameters(), lr=0.001)
+    #set the cuda device to a GPU allocated to current process .
+    device = torch.device('cpu')
+    model = Net().to(device)
 
-distributed_sgx_run(run)
+    optimizer = optim.Adadelta(model.parameters(), lr=0.001)
+
+    train(dataset, device, model, optimizer)
+
+if __name__ == "__main__":
+    main()
